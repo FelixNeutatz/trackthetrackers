@@ -2,6 +2,10 @@ package io.ssc.trackthetrackers.extraction.resources;
 
 import com.google.common.collect.Sets;
 import org.apache.commons.validator.routines.DomainValidator;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriver;
@@ -22,151 +26,49 @@ public class GhostDriverExtractor {
     private static final Logger LOG = LoggerFactory.getLogger(GhostDriverExtractor.class);
 
     private final URLNormalizer urlNormalizer = new URLNormalizer();
+    
 
-
-    /*
-
-    public Iterable<Resource> extractResources1(String sourceUrl, String html) {
-
-        Capabilities capabilities = new DesiredCapabilities().phantomjs();
-        // Set PhantomJS Path
-        ((DesiredCapabilities) capabilities).setCapability("phantomjs.binary.path", "/home/felix/Software/phantomjs/bin/phantomjs");
-        ((DesiredCapabilities) capabilities).setCapability("phantomjs.page.settings.loadImages", false);
-
-        WebDriver d = new PhantomJSDriver(capabilities);
-
-
-        if (!(d instanceof PhantomJSDriver)) {
-            // Skip this test if not using PhantomJS.
-            // The command under test is only available when using PhantomJS
-            return null;
-        }
-
-        PhantomJSDriver phantom = (PhantomJSDriver) d;
-
-        LogEntries logs = phantom.manage().logs().get("browser");
-
-        Object result = phantom.executePhantomJS("var resourceWait  = 300,\n" +
-                "      maxRenderWait = 10000;\n" +
-                "\n" +
-                "  var page          = this,\n" +
-                "      count         = 0,\n" +
-                "      forcedRenderTimeout,\n" +
-                "      renderTimeout;\n" +
-                "\n" +
-                "  page.viewportSize = { width: 1280,  height : 1024 };\n" +
-                "\n" +
-                "  function doRender() {\n" +
-                "\n" +
-                "  }\n" +
-                "\n" +
-                "  page.onResourceRequested = function (req) {\n" +
-                "      count += 1;\n" +
-                "      console.log('> ' + req.id + ' - ' + req.url);\n" +
-                "      clearTimeout(renderTimeout);\n" +
-                "  };\n" +
-                "\n" +
-                "  page.onResourceReceived = function (res) {\n" +
-                "      if (!res.stage || res.stage === 'end') {\n" +
-                "          count -= 1;\n" +
-                "          console.log(res.id + ' ' + res.status + ' - ' + res.url);\n" +
-                "          if (count === 0) {\n" +
-                "              renderTimeout = setTimeout(doRender, resourceWait);\n" +
-                "          }\n" +
-                "      }\n" +
-                "  };");
-
-        phantom.get("file:///home/felix/trackthetrackers/extraction/src/test/resources/zalando.de.html");
-
-
-
-        for(String s : phantom.manage().logs().getAvailableLogTypes()){
-            System.out.println("type: " + s);
-        }
-
-        for(LogEntry log :logs.getAll()) {
-            System.out.println(log.getMessage());
-        }
-
-
-
-
-
-        return null;
-    }
-
-*/
-/*
-    public Iterable<Resource> extractResources2(String sourceUrl, String html) {
-
-
-        Capabilities capabilities = new DesiredCapabilities().phantomjs();
-        // Set PhantomJS Path
-        ((DesiredCapabilities) capabilities).setCapability("phantomjs.binary.path", "/home/felix/Software/phantomjs/bin/phantomjs");
-        ((DesiredCapabilities) capabilities).setCapability("phantomjs.page.settings.loadImages", false);
-
-        WebDriver d = new PhantomJSDriver(capabilities);
-
-
-        if (!(d instanceof PhantomJSDriver)) {
-            // Skip this test if not using PhantomJS.
-            // The command under test is only available when using PhantomJS
-            return null;
-        }
-
-        PhantomJSDriver phantom = (PhantomJSDriver) d;
-
-        Object result = phantom.executePhantomJS("var resourceWait  = 300,\n" +
-                "      maxRenderWait = 10000;\n" +
-                "\n" +
-                "  var page          = this,\n" +
-                "      count         = 0,\n" +
-                "      forcedRenderTimeout,\n" +
-                "      renderTimeout;\n" +
-                "\n" +
-                "  page.viewportSize = { width: 1280,  height : 1024 };\n" +
-                "\n" +
-                "  function doRender() {\n" +
-                "\n" +
-                "  }\n" +
-                "\n" +
-
-
-                "var filename = 'test.txt';\n" +
-                "var fs = require('fs');\n" +
-                "if(!fs.isFile(filename)) {\n" +
-                "   fs.write(filename, '', 'w');\n" +
-                "}\n" +
-
-
-                "  page.onResourceRequested = function (req) {\n" +
-                "      count += 1;\n" +
-                "      console.log('> ' + req.id + ' - ' + req.url);\n" +
-                "      var content = fs.read(filename);\n" +
-                "      fs.write(filename, content + 'requested: ' + req.url + ';', 'w');\n" +
-                "      clearTimeout(renderTimeout);\n" +
-                "  };\n" +
-                "\n" +
-                "  page.onResourceReceived = function (res) {\n" +
-                "      if (!res.stage || res.stage === 'end') {\n" +
-                "          count -= 1;\n" +
-                "          console.log(res.id + ' ' + res.status + ' - ' + res.url);\n" +
-                "          var content = fs.read(filename);\n" +
-                "          fs.write(filename, content + 'received: ' + res.url + ';', 'w');\n" +
-                "          if (count === 0) {\n" +
-                "              renderTimeout = setTimeout(doRender, resourceWait);\n" +
-                "          }\n" +
-                "      }\n" +
-                "  };");
-
-        phantom.get("file:///home/felix/trackthetrackers/extraction/src/test/resources/zalando.de.html");
-
-        return null;
-    }
-    */
-
-    //without waiting
     public Iterable<Resource> extractResources(String sourceUrl, String html) {
+
+        Set<Resource> resources = Sets.newHashSet();
+        String prefixForInternalLinks = urlNormalizer.createPrefixForInternalLinks(sourceUrl);
+
+        Document doc = Jsoup.parse(html);
+        Elements iframes = doc.select("iframe[src]");
+        Elements links = doc.select("link[href]");
+        Elements imgs = doc.select("img[src]");
+
+        Elements all = iframes.clone();
+        all.addAll(links);
+        all.addAll(imgs);
+
+        String uri = null;
+
+        for (Element tag: all) {
+            uri = tag.attr("src");
+
+            if (!uri.contains(".")) {
+                uri = tag.attr("href");
+            }
+
+            if (uri.contains(".")) {
+                uri = urlNormalizer.expandIfInternalLink(prefixForInternalLinks, uri);
+                // normalize link
+                try {
+                    uri = urlNormalizer.normalize(uri);
+                    uri = urlNormalizer.extractDomain(uri);
+                } catch (MalformedURLException e) {
+                    if (LOG.isWarnEnabled()) {
+                        LOG.warn("Malformed URL: \"" + uri + "\"");
+                    }
+                }
+                if (isValidDomain(uri)) {
+                    resources.add(new Resource(uri, type(tag.tag().toString())));
+                }
+            }
+        }
+
+
 
         File temp = null;
         try{
@@ -209,7 +111,7 @@ public class GhostDriverExtractor {
 
         PhantomJSDriver phantom = (PhantomJSDriver) d;
 
-
+        /*
         Object result = phantom.executePhantomJS(
                 "var page          = this;\n" +
 
@@ -221,15 +123,9 @@ public class GhostDriverExtractor {
                 "      fs.write(filename, content + '>' + req.url + ' ', 'w');\n" +
                 "};\n" +
                 "\n" +
-           /*     "page.onResourceReceived = function (res) {\n" +
-                "      if (!res.stage || res.stage === 'end') {\n" +
-                "          var content = fs.read(filename);\n" +
-                "          fs.write(filename, content + res.url + ' ', 'w');\n" +
-                "      }\n" +
-                "};" */
-                "");
+                "");*/
 
-        /*
+
         Object result = phantom.executePhantomJS("var resourceWait  = 300,\n" +
                 "      maxRenderWait = 10000;\n" +
                 "\n" +
@@ -252,7 +148,6 @@ public class GhostDriverExtractor {
 
                 "  page.onResourceRequested = function (req) {\n" +
                 "      count += 1;\n" +
-                "      console.log('> ' + req.id + ' - ' + req.url);\n" +
                 "      var content = fs.read(filename);\n" +
                 "      fs.write(filename, content + '>' + req.url + ' ', 'w');\n" +
                 "      clearTimeout(renderTimeout);\n" +
@@ -261,20 +156,16 @@ public class GhostDriverExtractor {
                 "  page.onResourceReceived = function (res) {\n" +
                 "      if (!res.stage || res.stage === 'end') {\n" +
                 "          count -= 1;\n" +
-                "          console.log(res.id + ' ' + res.status + ' - ' + res.url);\n" +
                 "          var content = fs.read(filename);\n" +
                 "          fs.write(filename, content + res.url + ' ', 'w');\n" +
                 "          if (count === 0) {\n" +
                 "              renderTimeout = setTimeout(doRender, resourceWait);\n" +
                 "          }\n" +
                 "      }\n" +
-                "  };");*/
+                "  };");
 
         phantom.get("file://" + temp.getAbsolutePath());
 
-
-        Set<Resource> resources = Sets.newHashSet();
-        String prefixForInternalLinks = urlNormalizer.createPrefixForInternalLinks(sourceUrl);
 
         try {
             Scanner scanner = new Scanner(tempLog);
@@ -282,27 +173,27 @@ public class GhostDriverExtractor {
                 String[] tokens = scanner.nextLine().split(" ");
                 //do what you want to do with the tokens
 
-                for (String uri : tokens) {
-                    if(uri.startsWith(">")) {
-                        uri = uri.substring(1);
-                        System.out.println("requested: " + uri);
+                for (String url : tokens) {
+                    if(url.startsWith(">")) {
+                        url = url.substring(1);
+                        System.out.println("requested: " + url);
                     }
-                    if (uri.contains(".")) {
-                        if(uri.startsWith("file://")) {
-                            uri = uri.substring(7);
-                            uri = "http://" + uri;
+                    if (url.contains(".")) {
+                        if(url.startsWith("file://")) {
+                            url = url.substring(7);
+                            url = "http://" + url;
                         }
                         // normalize link
                         try {
-                            uri = urlNormalizer.normalize(uri);
-                            uri = urlNormalizer.extractDomain(uri);
+                            url = urlNormalizer.normalize(url);
+                            url = urlNormalizer.extractDomain(url);
                         } catch (MalformedURLException e) {
                             if (LOG.isWarnEnabled()) {
-                                LOG.warn("Malformed URL: \"" + uri + "\"");
+                                LOG.warn("Malformed URL: \"" + url + "\"");
                             }
                         }
-                        if (isValidDomain(uri)) {
-                            resources.add(new Resource(uri, Resource.Type.SCRIPT));
+                        if (isValidDomain(url)) {
+                            resources.add(new Resource(url, Resource.Type.SCRIPT));
                         }
                     }
                 }
@@ -335,4 +226,21 @@ public class GhostDriverExtractor {
         return DomainValidator.getInstance().isValidTld(topLevelDomain);
     }
 
+
+    private Resource.Type type(String tag) {
+        if ("script".equals(tag)) {
+            return Resource.Type.SCRIPT;
+        }
+        if ("link".equals(tag)) {
+            return Resource.Type.LINK;
+        }
+        if ("img".equals(tag)) {
+            return Resource.Type.IMAGE;
+        }
+        if ("iframe".equals(tag)) {
+            return Resource.Type.IFRAME;
+        }
+
+        return Resource.Type.OTHER;
+    }
 }

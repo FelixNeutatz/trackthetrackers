@@ -72,7 +72,7 @@ public class ResourceGhostDriverExtractionIntegrationTest {
         extractResources("http://www.mediamarkt.de", Resources.getResource("mediamarkt.de.html"));
 
     assertViewersFound(resources, "www.etracker.de", "css.redblue.de", "js.redblue.de", "data.mediamarkt.de",
-                                  "ad.doubleclick.net", "code.etracker.com");
+                                  "ad.doubleclick.net", "www.etracker.com");
   }
 
   @Test
@@ -94,11 +94,10 @@ public class ResourceGhostDriverExtractionIntegrationTest {
         extractResources("http://theguardian.com", Resources.getResource("theguardian.com.html"));
 
     assertViewersFound(resources, "static.guim.co.uk", "combo.guim.co.uk", "ajax.googleapis.com", "pasteup.guim.co.uk",
-                                  "www.googletagservices.com", "resource.guim.co.uk", "dqwufkbc3sdtr.cloudfront.net",
-                                  "assets.guim.co.uk", "id.guim.co.uk", "gu-text-catcher.appspot.com",
+                                  "www.googletagservices.com", "resource.guim.co.uk", "dqwufkbc3sdtr.cloudfront.net", "id.guim.co.uk", "gu-text-catcher.appspot.com",
                                   "cdn.optimizely.com", "ajax.googleapis.com", "j.ophan.co.uk", "discussion.guardianapis.com",
                                   "req.connect.wunderloop.net", "pq-direct.revsci.net", "widgets.outbrain.com",
-                                  "secure-uk.imrworldwide.com", "a248.e.akamai.net", "static.chartbeat.com",
+                                  "secure-uk.imrworldwide.com", "static.chartbeat.com",
                                   "cdn.krxd.net", "www.googleadservices.com", "pubads.g.doubleclick.net",
                                   "www.google.com");
   }
@@ -111,7 +110,7 @@ public class ResourceGhostDriverExtractionIntegrationTest {
 
     assertViewersFound(resources, "ct-ak.buzzfed.com", "www.googletagservices.com", "s3-ak.buzzfed.com",
                                   "partner.googleadservices.com", "stats.g.doubleclick.net",
-                                  "b.scorecardresearch.com", "securepubads.g.doubleclick.net", "edge.quantserve.com",
+                                  "b.scorecardresearch.com", "pubads.g.doubleclick.net", "edge.quantserve.com",
                                   "www.facebook.com", "connect.facebook.net",
 
 
