@@ -19,13 +19,15 @@
 package io.ssc.trackthetrackers.extraction.hadoop;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import com.google.common.io.CharStreams;
 import com.google.common.io.Closeables;
 
 import io.ssc.trackthetrackers.extraction.hadoop.io.ArcInputFormat;
 import io.ssc.trackthetrackers.extraction.hadoop.io.ArcRecord;
+import io.ssc.trackthetrackers.extraction.resources.GoogleParserExtractor;
+import io.ssc.trackthetrackers.extraction.resources.RegexResourceExtractor;
 import io.ssc.trackthetrackers.extraction.resources.Resource;
-import io.ssc.trackthetrackers.extraction.resources.ResourceExtractor;
 import io.ssc.trackthetrackers.commons.proto.ParsedPageProtos;
 
 import org.apache.hadoop.fs.Path;
@@ -33,10 +35,15 @@ import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Job;
 
+import com.google.common.collect.Sets;
+
+import java.util.HashSet;
+
 import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolException;
 import org.apache.http.entity.ContentType;
 
+import org.openqa.selenium.phantomjs.PhantomJSDriver;
 import parquet.hadoop.metadata.CompressionCodecName;
 import parquet.proto.ProtoParquetOutputFormat;
 
@@ -72,7 +79,11 @@ public class ExtractionJob extends HadoopJob {
 
   static class CommonCrawlExtractionMapper extends Mapper<Writable, ArcRecord, Void, ParsedPageProtos.ParsedPage> {
 
-    private final ResourceExtractor resourceExtractor = new ResourceExtractor();
+    //private final RegexResourceExtractor resourceExtractor = new RegexResourceExtractor();
+    //private final GhostDriverExtractor resourceExtractor = new GhostDriverExtractor();
+    private final GoogleParserExtractor resourceExtractor = new GoogleParserExtractor();
+
+    //private  PhantomJSDriver p = GhostDriverExtractor.setup();
 
     @Override
     public void map(Writable key, ArcRecord record, Context context) throws IOException, InterruptedException {
@@ -105,7 +116,33 @@ public class ExtractionJob extends HadoopJob {
             Closeables.close(reader, true);
           }
 
+          //Iterable<Resource> resources = resourceExtractor.extractResources(record.getURL(), html,p);
+
           Iterable<Resource> resources = resourceExtractor.extractResources(record.getURL(), html);
+
+          /*
+          boolean goad = false;
+          for(Resource r : resources) {
+            if (r.url().contains("google-analytics")) {
+              goad = true;
+              break;
+            }
+          }
+          if(goad) {
+            boolean debuggoad=false;
+            for(Resource dr : debugresources) {
+              if (dr.url().contains("google-analytics")) {
+                debuggoad = true;
+                break;
+              }
+            }
+
+            if(debuggoad == false) {
+              System.out.println("html:\n" + html);
+              System.exit(1);
+            }
+          }
+          */
 
           context.getCounter(Counters.PAGES).increment(1);
           context.getCounter(Counters.RESOURCES).increment(Iterables.size(resources));

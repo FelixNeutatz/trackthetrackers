@@ -22,7 +22,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
 import com.google.common.io.Resources;
 import io.ssc.trackthetrackers.extraction.resources.Resource;
-import io.ssc.trackthetrackers.extraction.resources.ResourceExtractor;
+import io.ssc.trackthetrackers.extraction.resources.GoogleParserExtractor;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.SortedSet;
 
 import static org.junit.Assert.assertTrue;
 
-public class ResourceExtractionIntegrationTest {
+public class GoogleParserExtractionIntegrationTest {
 
   @Test
   public void spiegelDe() throws IOException {
@@ -102,6 +102,15 @@ public class ResourceExtractionIntegrationTest {
                                   "www.google.com");
   }
 
+    @Test
+    public void test1() throws IOException {
+
+        Iterable<Resource> resources =
+                extractResources("http://buzzfeed.com", Resources.getResource("test1.html"));
+
+        assertViewersFound(resources, "stats.g.doubleclick.net");
+    }
+
   @Test
   public void buzzfeedCom() throws IOException {
 
@@ -116,13 +125,24 @@ public class ResourceExtractionIntegrationTest {
   }
 
 
-  @Test
+    @Test
+    public void googleAd() throws IOException {
+
+        Iterable<Resource> resources = extractResources("http://somewhere.de", Resources.getResource("missedGoogle.html"));
+
+        assertViewersFound(resources, "google-analytics.com");
+    }
+
+
+    @Test
   public void prosiebenDe() throws IOException {
 
     Iterable<Resource> resources = extractResources("http://prosieben.de", Resources.getResource("prosieben.de.html"));
 
     assertViewersFound(resources, "ad.71i.de", "service.maxymiser.net");
   }
+
+
 
 
     private void assertViewersFound(Iterable<Resource> resources, String... urls) {
@@ -164,7 +184,7 @@ public class ResourceExtractionIntegrationTest {
     }
 
   Iterable<Resource> extractResources(String sourceUrl, URL page) throws IOException {
-    return new ResourceExtractor().extractResources(sourceUrl, Resources.toString(page, Charsets.UTF_8));
+    return new GoogleParserExtractor().extractResources(sourceUrl, Resources.toString(page, Charsets.UTF_8));
   }
 
 }

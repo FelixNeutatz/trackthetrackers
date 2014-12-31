@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.Scanner;
 
@@ -26,9 +27,23 @@ public class GhostDriverExtractor {
     private static final Logger LOG = LoggerFactory.getLogger(GhostDriverExtractor.class);
 
     private final URLNormalizer urlNormalizer = new URLNormalizer();
-    
 
-    public Iterable<Resource> extractResources(String sourceUrl, String html) {
+
+    public static PhantomJSDriver setup(){
+        Capabilities capabilities = new DesiredCapabilities().phantomjs();
+        // Set PhantomJS Path
+        ((DesiredCapabilities) capabilities).setCapability("phantomjs.binary.path", "/home/felix/Software/phantomjs/bin/phantomjs");
+        ((DesiredCapabilities) capabilities).setCapability("phantomjs.settings.loadImages", false);
+        //((DesiredCapabilities) capabilities).setCapability("phantomjs.settings.localToRemoteUrlAccessEnabled", false);
+
+        return new PhantomJSDriver(capabilities);
+    }
+
+    public synchronized Iterable<Resource> extractResources(String sourceUrl, String html) {
+        return extractResources(sourceUrl, html, null);
+    }
+
+    public synchronized Iterable<Resource> extractResources(String sourceUrl, String html, PhantomJSDriver phantom) {
 
         Set<Resource> resources = Sets.newHashSet();
         String prefixForInternalLinks = urlNormalizer.createPrefixForInternalLinks(sourceUrl);
@@ -37,12 +52,17 @@ public class GhostDriverExtractor {
         Elements iframes = doc.select("iframe[src]");
         Elements links = doc.select("link[href]");
         Elements imgs = doc.select("img[src]");
+        Elements scripts = doc.select("script");
 
         Elements all = iframes.clone();
+        all.addAll(scripts);
         all.addAll(links);
         all.addAll(imgs);
 
         String uri = null;
+
+        ArrayList<String> scriptHtml =  new ArrayList<String>();
+        //scriptHtml.add(html);
 
         for (Element tag: all) {
             uri = tag.attr("src");
@@ -66,149 +86,122 @@ public class GhostDriverExtractor {
                     resources.add(new Resource(uri, type(tag.tag().toString())));
                 }
             }
+
+            /*
+            if (tag.tag().toString().equals("script")) { //filter functions
+                if(tag.data().length() > 1 && tag.data().contains("function")) {
+                    scriptHtml.add(tag.data());
+                }
+            }*/
         }
 
+        scriptHtml.add(html);
 
 
-        File temp = null;
-        try{
+        for(String shtml:scriptHtml) {
 
-            //create a temporary html source file
-            temp = File.createTempFile(sourceUrl, ".html");
+            File temp = null;
+            try {
 
-            //write it
-            BufferedWriter bw = new BufferedWriter(new FileWriter(temp));
-            bw.write(html);
-            bw.close();
+                //create a temporary html source file
+                temp = File.createTempFile(sourceUrl, ".html");
 
-        }catch(IOException e){
-            e.printStackTrace();
-        }
+                //write it
+                BufferedWriter bw = new BufferedWriter(new FileWriter(temp));
+                bw.write(html);
+                bw.close();
 
-
-        Capabilities capabilities = new DesiredCapabilities().phantomjs();
-        // Set PhantomJS Path
-        ((DesiredCapabilities) capabilities).setCapability("phantomjs.binary.path", "/home/felix/Software/phantomjs/bin/phantomjs");
-        ((DesiredCapabilities) capabilities).setCapability("phantomjs.page.settings.loadImages", false);
-
-        WebDriver d = new PhantomJSDriver(capabilities);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
 
-        if (!(d instanceof PhantomJSDriver)) {
-            // Skip this test if not using PhantomJS.
-            // The command under test is only available when using PhantomJS
-            return null;
-        }
+            File tempLog = null;
+            do {
+                try {
+                    //tempLog = File.createTempFile("log", ".log");
+                    tempLog = new File("temp.log");
+                    tempLog.createNewFile();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }while(!tempLog.exists());
+
+            if(phantom == null) {
+                phantom = setup();
+            }
+
+            Object result = phantom.executePhantomJS(
+                    "var page          = this;\n" +
+
+                            "var filename = '" + tempLog.getAbsolutePath() + "';\n" +
+                            "var fs = require('fs');\n" +
+
+                            "page.onResourceRequested = function (requestData, networkRequest) {\n" +
+                            //"      console.log(requestData.url);\n" +
+                            "      var content = fs.read(filename);\n" +
+                            "      fs.write(filename, content + requestData.url + ' ', 'w');\n" +
+                            // "      networkRequest.abort();\n" + //nothing works anymore with this !!
+                            "};\n" +
+
+                            /*
+
+                            "page.open('file://" + temp.getAbsolutePath() + "', function() {\n" +
+                            "      console.log('page opened');\n" +
+                            "\n" +
+                            "      phantom.exit();\n" +
+                            "});" + */
 
 
-        String tempLogFilename = "test.txt";
-        File tempLog = null;
-        try {
-            tempLog = File.createTempFile("log", ".log");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+                            "");
 
-        PhantomJSDriver phantom = (PhantomJSDriver) d;
-
-        /*
-        Object result = phantom.executePhantomJS(
-                "var page          = this;\n" +
-
-                "var filename = '" + tempLog.getAbsolutePath() + "';\n" +
-                "var fs = require('fs');\n" +
-
-                "page.onResourceRequested = function (req) {\n" +
-                "      var content = fs.read(filename);\n" +
-                "      fs.write(filename, content + '>' + req.url + ' ', 'w');\n" +
-                "};\n" +
-                "\n" +
-                "");*/
+            phantom.get("file://" + temp.getAbsolutePath());
 
 
-        Object result = phantom.executePhantomJS("var resourceWait  = 300,\n" +
-                "      maxRenderWait = 10000;\n" +
-                "\n" +
-                "  var page          = this,\n" +
-                "      count         = 0,\n" +
-                "      forcedRenderTimeout,\n" +
-                "      renderTimeout;\n" +
-                "\n" +
-                "  page.viewportSize = { width: 1280,  height : 1024 };\n" +
-                "\n" +
-                "  function doRender() {\n" +
-                "\n" +
-                "  }\n" +
-                "\n" +
 
+            try {
+                Scanner scanner = new Scanner(tempLog);
+                while (scanner.hasNextLine()) {
+                    String[] tokens = scanner.nextLine().split(" ");
+                    //do what you want to do with the tokens
 
-                "var filename = '" + tempLog.getAbsolutePath() + "';\n" +
-                "var fs = require('fs');\n" +
-
-
-                "  page.onResourceRequested = function (req) {\n" +
-                "      count += 1;\n" +
-                "      var content = fs.read(filename);\n" +
-                "      fs.write(filename, content + '>' + req.url + ' ', 'w');\n" +
-                "      clearTimeout(renderTimeout);\n" +
-                "  };\n" +
-                "\n" +
-                "  page.onResourceReceived = function (res) {\n" +
-                "      if (!res.stage || res.stage === 'end') {\n" +
-                "          count -= 1;\n" +
-                "          var content = fs.read(filename);\n" +
-                "          fs.write(filename, content + res.url + ' ', 'w');\n" +
-                "          if (count === 0) {\n" +
-                "              renderTimeout = setTimeout(doRender, resourceWait);\n" +
-                "          }\n" +
-                "      }\n" +
-                "  };");
-
-        phantom.get("file://" + temp.getAbsolutePath());
-
-
-        try {
-            Scanner scanner = new Scanner(tempLog);
-            while (scanner.hasNextLine()) {
-                String[] tokens = scanner.nextLine().split(" ");
-                //do what you want to do with the tokens
-
-                for (String url : tokens) {
-                    if(url.startsWith(">")) {
-                        url = url.substring(1);
-                        System.out.println("requested: " + url);
-                    }
-                    if (url.contains(".")) {
-                        if(url.startsWith("file://")) {
-                            url = url.substring(7);
-                            url = "http://" + url;
-                        }
-                        // normalize link
-                        try {
-                            url = urlNormalizer.normalize(url);
-                            url = urlNormalizer.extractDomain(url);
-                        } catch (MalformedURLException e) {
-                            if (LOG.isWarnEnabled()) {
-                                LOG.warn("Malformed URL: \"" + url + "\"");
+                    for (String url : tokens) {
+                        if (url.contains(".")) {
+                            if (url.startsWith("file://")) {
+                                url = url.substring(7);
+                                url = "http://" + url;
                             }
-                        }
-                        if (isValidDomain(url)) {
-                            resources.add(new Resource(url, Resource.Type.SCRIPT));
+                            // normalize link
+                            try {
+                                url = urlNormalizer.normalize(url);
+                                url = urlNormalizer.extractDomain(url);
+                            } catch (MalformedURLException e) {
+                                if (LOG.isWarnEnabled()) {
+                                    LOG.warn("Malformed URL: \"" + url + "\"");
+                                }
+                            }
+                            if (isValidDomain(url)) {
+                                resources.add(new Resource(url, Resource.Type.SCRIPT));
+                            }
                         }
                     }
                 }
+                scanner.close();
+            } catch (IOException e) {
+                System.out.println(e.getStackTrace());
             }
-            scanner.close();
-        } catch (IOException e) {
-            System.out.println(e.getStackTrace());
+
+            temp.delete(); //delete temporary html source file
+            tempLog.delete();//delete temporary request log file
         }
 
-        temp.delete(); //delete temporary html source file
-        tempLog.delete();//delete temporary request log file
+
+
+
+
 
         return resources;
     }
-
 
 
 

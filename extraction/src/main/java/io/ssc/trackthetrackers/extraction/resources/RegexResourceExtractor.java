@@ -36,9 +36,9 @@ import org.apache.commons.validator.routines.DomainValidator;
 
 import com.google.common.collect.Sets;
 
-public class ResourceExtractor {
+public class RegexResourceExtractor {
 
-  private static final Logger LOG = LoggerFactory.getLogger(ResourceExtractor.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RegexResourceExtractor.class);
 
   private final URLNormalizer urlNormalizer = new URLNormalizer();
 

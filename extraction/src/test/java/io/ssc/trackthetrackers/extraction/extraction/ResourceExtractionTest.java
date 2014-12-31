@@ -22,18 +22,18 @@ import static org.junit.Assert.assertEquals;
 
 import com.google.common.collect.Iterables;
 import io.ssc.trackthetrackers.extraction.resources.Resource;
-import io.ssc.trackthetrackers.extraction.resources.ResourceExtractor;
+import io.ssc.trackthetrackers.extraction.resources.RegexResourceExtractor;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 public class ResourceExtractionTest {
 
-  private ResourceExtractor extractor;
+  private RegexResourceExtractor extractor;
 
   @Before
   public void initializeExtractor() {
-    extractor = new ResourceExtractor();
+    extractor = new RegexResourceExtractor();
   }
 
   @Test
