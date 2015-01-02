@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+import java.lang.reflect.Array;
 import java.net.MalformedURLException;
 import java.util.*;
 
@@ -30,6 +31,7 @@ import java.util.*;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.SynchronousQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -124,11 +126,17 @@ public class GoogleParserExtractor {
         ArrayList<String> parsedStrings = new ArrayList<String>();
 
         for(String script:scriptHtml) {
+                ArrayList<String> variables = new ArrayList<String>();
+                ArrayList<String> docVariables = new ArrayList<String>();
                 try {
                     ParserRunner.ParseResult r = ParserRunner.parse(f, script, config, errorReporter);
-                    //printTree(r.ast, 0);
+                    printTree(r.ast, 0);
 
-                    parseStrings(r.ast, parsedStrings);
+
+                    //parseStrings(r.ast, parsedStrings); //this thing really gets all
+                    parseValidStrings(r.ast, parsedStrings, variables, docVariables, false);
+
+                    secondRunForVarAssign(r.ast, parsedStrings, variables, false);
                 } catch(Exception e) {
                     if (LOG.isWarnEnabled()) {
                         LOG.warn("Parser Exception: \"" + e + "\"");
@@ -250,6 +258,274 @@ public class GoogleParserExtractor {
 
         for(Node child : root.children()){
             parseStrings(child, parsedStrings);
+        }
+    }
+
+    private boolean isDocumentWrite (Node root) {
+        if(root.isCall()) {
+            //System.out.println("calli");
+            Node child = root.getFirstChild();
+            if(child != null && child.isGetProp()) {
+                Node nameN = child.getFirstChild();
+                if(nameN != null && nameN.isName() && nameN.getString().equals("document")) {
+                    Node writeN = nameN.getNext();
+                    if(writeN != null && writeN.isString() && (writeN.getString().equals("write") || writeN.getString().equals("writeln"))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isRequireConfig (Node root) {
+        if(root.isCall()) {
+            //System.out.println("call");
+            for(Node child : root.children()){
+                if(child.isGetProp()) {
+                    int i = 0;
+                    for(Node prop : child.children()){
+                        if(i==0) {
+                            if (prop.isName() && prop.getString().equals("require")) {
+                                //System.out.println("\trequire");
+                            } else {
+                                return false;
+                            }
+                        }
+                        if(i==1) {
+                            if (prop.isString() && prop.getString().equals("config")) {
+                                //System.out.println("\t\tconfig");
+                                return true;
+                            } else {
+                                return false;
+                            }
+                        }
+                        i++;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isJQAjaxPost (Node root) {
+        if(root.isCall()) {
+            //System.out.println("call");
+            for(Node child : root.children()){
+                if(child.isGetProp()) {
+                    int i = 0;
+                    for(Node prop : child.children()){
+                        if(i==0) {
+                            if (prop.isName() && prop.getString().toLowerCase().equals("jq")) {
+                                //System.out.println("\tjQ");
+                            } else {
+                                return false;
+                            }
+                        }
+                        if(i==1) {
+                            if (prop.isString() && (prop.getString().equals("ajax") || prop.getString().equals("post"))) {
+                                //System.out.println("\t\tajax");
+                                return true;
+                            } else {
+                                return false;
+                            }
+                        }
+                        i++;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isJQAppend (Node root) {
+        if(root.isCall()) {
+            Node child = root.getFirstChild();
+            if(child != null && child.isGetProp()) {
+                Node callN = child.getFirstChild();
+                if(callN != null && callN.isCall()) {
+                    Node jqN = callN.getFirstChild();
+                    if(jqN != null && jqN.isName() && jqN.getString().equals("jQ")){
+                        Node functionN = callN.getNext();
+                        if(functionN != null && functionN.isString() && functionN.getString().equals("append")){
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isRequire (Node root) {
+        if(root.isCall()) {
+            //System.out.println("call");
+            for(Node child : root.children()){
+                if(child.isName() && child.getString().equals("require")) {
+                    //System.out.println("require");
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isSetDocumentAttributeSRC(Node root, ArrayList<String> documentVariables) {
+        if(root.isCall()) {
+            Node getPropN = root.getFirstChild();
+            if(getPropN.isGetProp()) {
+                Node docVarN = getPropN.getFirstChild();
+                if(docVarN.isName()) {
+                    for (String varname : documentVariables) {
+                        if(varname.equals(docVarN.getString())) {
+                            Node setAttributeN = getPropN.getLastChild();
+                            if(setAttributeN.isString() && setAttributeN.getString().equals("setAttribute")) {
+                                Node attributeType = getPropN.getNext();
+                                if(attributeType.isString() && attributeType.getString().toLowerCase().equals("src")) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isAssignSRC(Node root, ArrayList<String> documentVariables) {
+        if(root.isAssign()) {
+            //System.out.println("Assignment: ");
+            Node getPropN = root.getFirstChild();
+            if(getPropN != null && getPropN.isGetProp()) {
+                Node varNameN = getPropN.getFirstChild();
+                //System.out.println("prop: " + varNameN);
+                if(varNameN != null && varNameN.isName()) {
+                    for (String varname : documentVariables) {
+                        //System.out.println("vars: " + documentVariables);
+                        if (varname.equals(varNameN.getString())) {
+                            Node srcN = varNameN.getNext();
+                            if(srcN.isString() && srcN.getString().toLowerCase().equals("src")) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isImport (Node root) {
+        return isDocumentWrite(root) || isRequire(root) || isRequireConfig(root) || isJQAjaxPost(root) || isJQAppend(root);
+    }
+
+    /*
+    js = d.createElement('script');
+    var ga = doc.createElement('script');
+     */
+    private String isCreateElementScript(Node root) {
+        if(root.isName()){
+            //System.out.println("var name = " + root.getString());
+            String name = root.getString();
+
+            Node callN = null;
+            if(root.getNext() != null && root.getNext().isCall()) {
+                callN = root.getNext();
+            } else {
+                callN = root.getFirstChild();
+            }
+            if(callN != null && callN.isCall()) {
+                Node getpropN = callN.getFirstChild();
+                if(getpropN.isGetProp()) {
+                    Node docN = getpropN.getFirstChild();
+                    if(docN.isName()) {
+                        Node elem = getpropN.getLastChild();
+                        if (elem.isString() && elem.getString().equals("createElement")) {
+                            return name;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private void parseValidStrings(Node root, ArrayList<String> parsedStrings, ArrayList<String> variableNames,
+                                   ArrayList<String> documentVariables, boolean searchStarted) {
+
+        if(searchStarted && root.isString()) {
+            if(root.getString().contains(".")) {
+                parsedStrings.add(root.getString());
+            }
+        }
+
+
+        //add variables when the string is build by concatenation
+        if(searchStarted && root.isName()) {
+            variableNames.add(root.getString());
+        }
+
+        //check whether we should start the string search
+        if(isImport(root)) {
+            searchStarted = true;
+            //System.out.println("found");
+        }
+
+
+        //get variable name from following statement: var x = document.createElement('script');
+        String documentVariable = isCreateElementScript(root);
+        if(documentVariable != null) {
+            documentVariables.add(documentVariable);
+        }
+
+
+        if(isSetDocumentAttributeSRC(root,documentVariables) || isAssignSRC(root, documentVariables)){
+            searchStarted = true;
+        }
+
+        for(Node child : root.children()){
+            parseValidStrings(child, parsedStrings, variableNames, documentVariables, searchStarted);
+        }
+    }
+
+    private boolean isAssign(Node root, ArrayList<String> variableNames) {
+        if(root.isAssign() || root.isAssignAdd() || root.isVar()) {
+            for(Node child : root.children()) {
+                if(child.isName()) {
+                    for (String var : variableNames) {
+                        if (var.equals(child.getString())) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private void secondRunForVarAssign(Node root, ArrayList<String> parsedStrings, ArrayList<String> variableNames, boolean searchStarted) {
+        if(searchStarted && root.isString()) {
+            if(root.getString().contains(".")) {
+                parsedStrings.add(root.getString());
+            }
+        }
+
+        if(isAssign(root,variableNames)) {
+            searchStarted = true;
+        }
+        /*
+        if(root.isName()) {
+            for(String curname:variableNames) {
+                if(root.getString().equals(curname)){
+                    searchStarted = true;
+                    break;
+                }
+            }
+        }*/
+
+        for(Node child : root.children()){
+            secondRunForVarAssign(child, parsedStrings, variableNames, searchStarted);
         }
     }
 
