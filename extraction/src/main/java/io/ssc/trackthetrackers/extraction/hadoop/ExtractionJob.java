@@ -25,6 +25,7 @@ import com.google.common.io.Closeables;
 
 import io.ssc.trackthetrackers.extraction.hadoop.io.ArcInputFormat;
 import io.ssc.trackthetrackers.extraction.hadoop.io.ArcRecord;
+import io.ssc.trackthetrackers.extraction.resources.GoogleParserAllExtractor;
 import io.ssc.trackthetrackers.extraction.resources.GoogleParserExtractor;
 import io.ssc.trackthetrackers.extraction.resources.RegexResourceExtractor;
 import io.ssc.trackthetrackers.extraction.resources.Resource;
@@ -82,6 +83,7 @@ public class ExtractionJob extends HadoopJob {
     //private final RegexResourceExtractor resourceExtractor = new RegexResourceExtractor();
     //private final GhostDriverExtractor resourceExtractor = new GhostDriverExtractor();
     private final GoogleParserExtractor resourceExtractor = new GoogleParserExtractor();
+    private final GoogleParserAllExtractor resourceExtractor1 = new GoogleParserAllExtractor();
 
     //private  PhantomJSDriver p = GhostDriverExtractor.setup();
 
@@ -120,29 +122,39 @@ public class ExtractionJob extends HadoopJob {
 
           Iterable<Resource> resources = resourceExtractor.extractResources(record.getURL(), html);
 
-          /*
+          Iterable<Resource> resources1 = resourceExtractor1.extractResources(record.getURL(), html);
+
+
           boolean goad = false;
-          for(Resource r : resources) {
-            if (r.url().contains("google-analytics")) {
+          for(Resource r : resources1) {
+            if (r.url().contains("connect.facebook")) {
               goad = true;
               break;
             }
           }
           if(goad) {
             boolean debuggoad=false;
-            for(Resource dr : debugresources) {
-              if (dr.url().contains("google-analytics")) {
+            for(Resource dr : resources) {
+              if (dr.url().contains("connect.facebook")) {
                 debuggoad = true;
                 break;
               }
             }
 
-            if(debuggoad == false) {
-              System.out.println("html:\n" + html);
-              System.exit(1);
+            if(debuggoad == false && !html.contains("gawker_getScript(") && !html.contains("$.getScript(")
+                    && !html.contains("Asset.javascript") && !html.contains("asyncLoad(")
+                    && !html.contains("$(document.body).append") && !html.contains("topix_loadScript(")
+                    && !html.contains("RB.loadAsyncScript") && !html.contains("addJavascript(") &&
+                    !html.contains("jQuery.extend(")) {
+
+              if(!html.contains("appId: '132725426770373'")) {
+                System.out.println("html:\n" + html + "length: " + html.length());
+
+                System.exit(1);
+              }
             }
           }
-          */
+
 
           context.getCounter(Counters.PAGES).increment(1);
           context.getCounter(Counters.RESOURCES).increment(Iterables.size(resources));

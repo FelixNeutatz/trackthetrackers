@@ -22,7 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-import java.lang.reflect.Array;
 import java.net.MalformedURLException;
 import java.util.*;
 
@@ -31,7 +30,6 @@ import java.util.*;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.SynchronousQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -130,7 +128,7 @@ public class GoogleParserExtractor {
                 ArrayList<String> docVariables = new ArrayList<String>();
                 try {
                     ParserRunner.ParseResult r = ParserRunner.parse(f, script, config, errorReporter);
-                    printTree(r.ast, 0);
+                    //printTree(r.ast, 0);
 
 
                     //parseStrings(r.ast, parsedStrings); //this thing really gets all
